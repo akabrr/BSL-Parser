@@ -31,6 +31,7 @@ Var Location Export; // boolean
 #Region Init
 
 Procedure Init()
+	Var Letters, Index, Char;
 
 	Verbose = False;
 	Debug = False;
@@ -195,11 +196,14 @@ EndFunction // Tokens()
 
 Function Nodes() Export
 	Return Enum(New Structure,
-		"Module, Unknown, Func, Proc, VarMod, VarLoc, Param, PrepSymbol,
-		|VarModListDecl, VarLocListDecl, ProcDecl, FuncDecl, PrepIfDecl, PrepElsIfDecl, PrepRegionDecl,
-		|BasicLitExpr, SelectExpr, DesigExpr, UnaryExpr, BinaryExpr, NewExpr, TernaryExpr, ParenExpr, NotExpr, StringExpr,
-		|AssignStmt, ReturnStmt, BreakStmt, ContinueStmt, RaiseStmt, ExecuteStmt, CallStmt, IfStmt, ElsIfStmt,
-		|PrepIfStmt, PrepElsIfStmt, WhileStmt, PrepRegionStmt, ForStmt, ForEachStmt, TryStmt, GotoStmt, LabelStmt, PrepUseDecl"
+		"Module, Unknown, Func, Proc, VarMod, VarLoc, Param,
+		|VarModDecl, VarLocDecl, ProcDecl, FuncDecl,
+		|BasicLitExpr, SelectExpr, DesigExpr, UnaryExpr, BinaryExpr,
+		|NewExpr, TernaryExpr, ParenExpr, NotExpr, StringExpr,
+		|AssignStmt, ReturnStmt, BreakStmt, ContinueStmt, RaiseStmt, ExecuteStmt, WhileStmt,
+		|ForStmt, ForEachStmt, TryStmt, GotoStmt, LabelStmt, CallStmt, IfStmt, ElsIfStmt,
+		|PrepIfInst, PrepElsIfInst, PrepElseInst, PrepEndIfInst, PrepRegionInst, PrepEndRegionInst,
+		|PrepBinaryExpr, PrepNotExpr, PrepSymExpr, PrepUseInst"
 	);
 EndFunction // Nodes()
 
@@ -240,7 +244,7 @@ Function PrepSymbols() Export
 		"AtServer.НаСервере,"
 		"MobileAppClient.МобильноеПриложениеКлиент,"
 		"MobileAppServer.МобильноеПриложениеСервер,"
-		"ThickClientOrdinaryApplication.ТолстыйКлиентУправляемоеПриложение,"
+		"ThickClientOrdinaryApplication.ТолстыйКлиентОбычноеПриложение,"
 		"ThickClientManagedApplication.ТолстыйКлиентУправляемоеПриложение,"
 		"Server.Сервер,"
 		"ExternalConnection.ВнешнееСоединение,"
@@ -359,21 +363,11 @@ Function Param(Name, ByVal, Value = Undefined)
 	, Nodes.Param, Name, ByVal, Value);
 EndFunction // Param()
 
-Function PrepSymbol(Name)
-	// Узел хранит информацию о символе препроцессора.
-	// Является объектом глобальной области видимости.
-	// Используется только в выражениях препроцессора.
-	Return New Structure( // @Node
-		"Type," // string (one of Nodes)
-		"Name"  // string
-	, Nodes.PrepSymbol, Name);
-EndFunction // PrepSymbol()
-
 #EndRegion // Scope
 
 #Region Declarations
 
-Function VarModListDecl(Directive, VarList, Place = Undefined)
+Function VarModDecl(Directive, VarList, Place = Undefined)
 	// Хранит информацию об инструкции объявления переменных уровня модуля.
 	// Пример:
 	// <pre>
@@ -385,10 +379,10 @@ Function VarModListDecl(Directive, VarList, Place = Undefined)
 		"Directive," // string (one of Directives)
 		"List,"      // array (VarMod)
 		"Place"      // undefined, structure (Place)
-	, Nodes.VarModListDecl, Directive, VarList, Place);
-EndFunction // VarModListDecl()
+	, Nodes.VarModDecl, Directive, VarList, Place);
+EndFunction // VarModDecl()
 
-Function VarLocListDecl(VarList, Place = Undefined)
+Function VarLocDecl(VarList, Place = Undefined)
 	// Хранит информацию об инструкции объявления локальных переменных.
 	// Пример:
 	// <pre>
@@ -398,8 +392,8 @@ Function VarLocListDecl(VarList, Place = Undefined)
 		"Type,"  // string (one of Nodes)
 		"List,"  // array (VarLoc)
 		"Place"  // undefined, structure (Place)
-	, Nodes.VarLocListDecl, VarList, Place);
-EndFunction // VarLocListDecl()
+	, Nodes.VarLocDecl, VarList, Place);
+EndFunction // VarLocDecl()
 
 Function ProcDecl(Object, Decls, Auto, Body, Place = Undefined)
 	// Хранит информацию об инструкции объявления процедуры.
@@ -446,84 +440,6 @@ Function FuncDecl(Object, Decls, Auto, Body, Place = Undefined)
 		"Place"   // undefined, structure (Place)
 	, Nodes.FuncDecl, Object, Decls, Auto, Body, Place);
 EndFunction // FuncDecl()
-
-Function PrepIfDecl(Cond, ThenPart, ElsIfPart = Undefined, ElsePart = Undefined, Place = Undefined)
-	// Хранит информацию об инструкции препроцессора #Если,
-	// которая находится непосредственно в модуле.
-	// Пример:
-	// <pre>
-	// #Если Сервер Тогда // поле "Cond" хранит условие (выражение)
-	//     // поле "Then" хранит объявления в этом блоке
-	// #ИначеЕсли Клиент Тогда
-	//     // поле-массив "ElsIf" хранит последовательность блоков #ИначеЕсли
-	// #Иначе
-	//     // поле "Else" хранит объявления в этом блоке
-	// #КонецЕсли
-	// </pre>
-	Return New Structure( // @Node
-		"Type,"  // string (one of Nodes)
-		"Cond,"  // structure (one of #Expressions)
-		"Then,"  // array (one of #Declarations)
-		"ElsIf," // undefined, array (PrepElsIfDecl)
-		"Else,"  // undefined, array (one of #Declarations)
-		"Place"  // undefined, structure (Place)
-	, Nodes.PrepIfDecl, Cond, ThenPart, ElsIfPart, ElsePart, Place);
-EndFunction // PrepIfDecl()
-
-Function PrepElsIfDecl(Cond, ThenPart, Place = Undefined)
-	// Хранит информацию о ветке #ИначеЕсли в инструкции препроцессора #Если,
-	// которая находится непосредственно в модуле.
-	// Пример:
-	// <pre>
-	// ...
-	// #ИначеЕсли Клиент Тогда // поле "Cond" хранит условие (выражение)
-	//     // поле "Then" хранит объявления в этом блоке
-	// ...
-	// </pre>
-	Return New Structure( // @Node
-		"Type,"  // string (one of Nodes)
-		"Cond,"  // structure (one of #Expressions)
-		"Then,"  // array (one of #Declarations)
-		"Place"  // undefined, structure (Place)
-	, Nodes.PrepElsIfDecl, Cond, ThenPart, Place);
-EndFunction // PrepElsIfDecl()
-
-Function PrepRegionDecl(Name, Decls, Body, Place = Undefined)
-	// Хранит информацию об инструкции препроцессора #Обрасть,
-	// которая находится непосредственно в модуле.
-	// Пример:
-	// <pre>
-	// #Область Интерфейс   // поле "Name" хранит имя области
-	//     Перем П1;        // поле "Decls" хранит объявления переменных,
-	//     Процедура Тест() // процедур и функций.
-	//         ...
-	//     КонецПроцедуры
-	//     П1 = 2;          // поле "Body" хранит операторы тела модуля.
-	// #КонецОбласти
-	// </pre>
-	Return New Structure( // @Node
-		"Type,"  // string (one of Nodes)
-		"Name,"  // string
-		"Decls," // array (one of #Declarations)
-		"Body,"  // array (one of #Statements)
-		"Place"  // undefined, structure (Place)
-	, Nodes.PrepRegionDecl, Name, Decls, Body, Place);
-EndFunction // PrepRegionDecl()
-
-Function PrepUseDecl(Path, Place = Undefined)
-	// Хранит информацию об инструкции препроцессора #Использовать,
-	// которая находится непосредственно в модуле.
-	// Это нестандартная инструкция из OneScript
-	// Пример:
-	// <pre>
-	// #Использовать 1commands // поле "Path" хранит имя библиотеки или путь в кавычках
-	// </pre>
-	Return New Structure( // @Node @OneScript
-	  "Type," // string (one of Nodes)
-	  "Path," // string
-	  "Place" // undefined, structure (Place)
-	, Nodes.PrepUseDecl, Path);
-EndFunction // PrepUseDecl()
 
 #EndRegion // Declarations
 
@@ -818,47 +734,6 @@ Function ElsIfStmt(Cond, ThenPart, Place = Undefined)
 	, Nodes.ElsIfStmt, Cond, ThenPart, Place);
 EndFunction // ElsIfStmt()
 
-Function PrepIfStmt(Cond, ThenPart, ElsIfPart = Undefined, ElsePart = Undefined, Place = Undefined)
-	// Хранит инструкцию препроцессора "#Если",
-	// которая находится внутри процедуры или функции.
-	// Пример:
-	// <pre>
-	// #Если Сервер Тогда // поле "Cond" хранит условие (выражение)
-	//     // поле "Then" хранит операторы в этом блоке
-	// #ИначеЕсли Клиент Тогда
-	//     // поле-массив "ElsIf" хранит последовательность блоков ИначеЕсли
-	// #Иначе
-	//     // поле "Else" хранит операторы в этом блоке
-	// #КонецЕсли
-	// </pre>
-	Return New Structure( // @Node
-		"Type,"  // string (one of Nodes)
-		"Cond,"  // structure (one of #Expressions)
-		"Then,"  // array (one of #Statements)
-		"ElsIf," // undefined, array (PrepElsIfStmt)
-		"Else,"  // undefined, array (one of #Statements)
-		"Place"  // undefined, structure (Place)
-	, Nodes.PrepIfStmt, Cond, ThenPart, ElsIfPart, ElsePart, Place);
-EndFunction // PrepIfStmt()
-
-Function PrepElsIfStmt(Cond, ThenPart, Place = Undefined)
-	// Хранит блок "#ИначеЕсли" инструкции препроцессора "#Если",
-	// которая находится внутри процедуры или функции.
-	// Пример:
-	// <pre>
-	// ...
-	// #ИначеЕсли Клиент Тогда // поле "Cond" хранит условие (выражение)
-	//     // поле "Then" хранит операторы в этом блоке
-	// ...
-	// </pre>
-	Return New Structure( // @Node
-		"Type," // string (one of Nodes)
-		"Cond," // structure (one of #Expressions)
-		"Then," // array (one of #Statements)
-		"Place" // undefined, structure (Place)
-	, Nodes.PrepElsIfStmt, Cond, ThenPart, Place);
-EndFunction // PrepElsIfStmt()
-
 Function WhileStmt(Cond, Statements, Place = Undefined)
 	// Хранит оператор цикла "Пока".
 	// Пример:
@@ -874,23 +749,6 @@ Function WhileStmt(Cond, Statements, Place = Undefined)
 		"Place" // undefined, structure (Place)
 	, Nodes.WhileStmt, Cond, Statements, Place);
 EndFunction // WhileStmt()
-
-Function PrepRegionStmt(Name, Statements, Place = Undefined)
-	// Хранит инструкцию препроцессора "Область",
-	// которая находится внутри процедуры или функции.
-	// <pre>
-	// #Область ТекстЗапроса   // поле "Name" хранит имя области
-	// Запрос.Текст =          // поле "Body" хранит операторы внутри области.
-	//     "ВЫБРАТЬ * ИЗ Таблица";
-	// #КонецОбласти
-	// </pre>
-	Return New Structure( // @Node
-		"Type," // string (one of Nodes)
-		"Name," // string
-		"Body," // array (one of #Statements)
-		"Place" // undefined, structure (Place)
-	, Nodes.PrepRegionStmt, Name, Statements, Place);
-EndFunction // PrepRegionStmt()
 
 Function ForStmt(DesigExpr, From, Until, Statements, Place = Undefined)
 	// Хранит оператор цикла "Для".
@@ -966,6 +824,153 @@ Function LabelStmt(Label, Place = Undefined)
 EndFunction // LabelStmt()
 
 #EndRegion // Statements
+
+#Region PrepInst
+
+Function PrepIfInst(Cond, Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #Если,
+	// Пример:
+	// <pre>
+	// ...
+	// #Если Сервер Тогда // поле "Cond" хранит условие (выражение)
+	// ...
+	// </pre>
+	Return New Structure( // @Node
+		"Type,"  // string (one of Nodes)
+		"Cond,"  // structure (one of #PrepExpr)
+		"Place"  // undefined, structure (Place)
+	, Nodes.PrepIfInst, Cond, Place);
+EndFunction // PrepIfInst()
+
+Function PrepElsIfInst(Cond, Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #ИначеЕсли
+	// Пример:
+	// <pre>
+	// ...
+	// #ИначеЕсли Клиент Тогда // поле "Cond" хранит условие (выражение)
+	// ...
+	// </pre>
+	Return New Structure( // @Node
+		"Type,"  // string (one of Nodes)
+		"Cond,"  // structure (one of #PrepExpr)
+		"Place"  // undefined, structure (Place)
+	, Nodes.PrepElsIfInst, Cond, Place);
+EndFunction // PrepElsIfInst()
+
+Function PrepElseInst(Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #Иначе
+	Return New Structure( // @Node
+		"Type,"  // string (one of Nodes)
+		"Place"  // undefined, structure (Place)
+	, Nodes.PrepElseInst, Place);
+EndFunction // PrepElseInst()
+
+Function PrepEndIfInst(Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #КонецЕсли
+	Return New Structure( // @Node
+		"Type,"  // string (one of Nodes)
+		"Place"  // undefined, structure (Place)
+	, Nodes.PrepEndIfInst, Place);
+EndFunction // PrepEndIfInst()
+
+Function PrepRegionInst(Name, Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #Обрасть,
+	// Пример:
+	// <pre>
+	// ...
+	// #Область Интерфейс   // поле "Name" хранит имя области
+	// ...
+	// </pre>
+	Return New Structure( // @Node
+		"Type,"  // string (one of Nodes)
+		"Name,"  // string
+		"Place"  // undefined, structure (Place)
+	, Nodes.PrepRegionInst, Name, Place);
+EndFunction // PrepRegionInst()
+
+Function PrepEndRegionInst(Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #КонецОбласти,
+	// Пример:
+	// <pre>
+	// ...
+	// #КонецОбласти
+	// ...
+	// </pre>
+	Return New Structure( // @Node
+		"Type,"  // string (one of Nodes)
+		"Place"  // undefined, structure (Place)
+	, Nodes.PrepEndRegionInst, Place);
+EndFunction // PrepEndRegionInst()
+
+Function PrepUseInst(Path, Place = Undefined)
+	// Хранит информацию об инструкции препроцессора #Использовать,
+	// Это нестандартная инструкция из OneScript
+	// Пример:
+	// <pre>
+	// #Использовать 1commands // поле "Path" хранит имя библиотеки или путь в кавычках
+	// </pre>
+	Return New Structure( // @Node @OneScript
+	  "Type," // string (one of Nodes)
+	  "Path," // string
+	  "Place" // undefined, structure (Place)
+	, Nodes.PrepUseInst, Path, Place);
+EndFunction // PrepUseInst()
+
+#EndRegion // PrepInst
+
+#Region PrepExpr
+
+Function PrepBinaryExpr(Left, Operator, Right, Place = Undefined)
+	// Хранит бинарное выражение препроцессора.
+	// Пример:
+	// <pre>
+	// // бинарные выражения заключены в скобки <...>
+	// // поле "Operator" равно либо Tokens.Or либо Tokens.And:
+	// // поля "Left" и "Right" содержат операнды-выражения препроцессора
+	// #Если <Сервер Или ВнешнееСоединение> Тогда
+	// ...
+	// </pre>
+	Return New Structure( // @Node
+		"Type,"     // string (one of Nodes)
+		"Left,"     // structure (one of #PrepExpr)
+		"Operator," // string (one of Tokens)
+		"Right,"    // structure (one of #PrepExpr)
+		"Place"     // undefined, structure (Place)
+	, Nodes.PrepBinaryExpr, Left, Operator, Right, Place);
+EndFunction // PrepBinaryExpr()
+
+Function PrepNotExpr(Expr, Place = Undefined)
+	// Хранит выражение препроцессора, к которому применено логическое отрицание "Не".
+	// Пример:
+	// <pre>
+	// // выражение-отрицание заключено в скобки <...>
+	// #Если <Не ВебКлиент> Тогда
+	// ...
+	// </pre>
+	Return New Structure( // @Node
+		"Type," // string (one of Nodes)
+		"Expr," // structure (one of #PrepExpr)
+		"Place" // undefined, structure (Place)
+	, Nodes.PrepNotExpr, Expr, Place);
+EndFunction // PrepNotExpr()
+
+Function PrepSymExpr(Symbol, Exist, Place = Undefined)
+	// Узел хранит информацию о символе препроцессора.
+	// Поле Exist = True если такой символ существует.
+	// Пример:
+	// <pre>
+	// // символ заключен в скобки <...>
+	// #Если <Сервер> Тогда
+	// </pre>
+	Return New Structure( // @Node
+		"Type,"   // string (one of Nodes)
+		"Symbol," // string (one of PrepSymbols)
+		"Exist,"  // boolean
+		"Place"   // undefined, structure (Place)
+	, Nodes.PrepSymExpr, Symbol, Exist, Place);
+EndFunction // PrepSymExpr()
+
+#EndRegion // PrepExpr
 
 #EndRegion // AbstractSyntaxTree
 
@@ -1528,24 +1533,10 @@ Function ParseSelectExpr(Parser)
 	Return SelectExpr;
 EndFunction // ParseSelectExpr()
 
-Function ParseExprList(Parser, HeadExpr = Undefined)
-	Var ExprList;
-	If HeadExpr = Undefined Then
-		HeadExpr = ParseExpression(Parser);
-	EndIf;
-	ExprList = New Array;
-	ExprList.Add(HeadExpr);
-	While Parser.Tok = Tokens.Comma And InitOfExpression.Find(Next(Parser)) <> Undefined Do
-		ExprList.Add(ParseExpression(Parser));
-	EndDo;
-	Return ExprList;
-EndFunction // ParseExprList()
-
 Function ParseArguments(Parser)
-	Var ExprList, ExpectExpression;
+	Var ExprList;
 	ExprList = New Array;
-	ExpectExpression = True;
-	While ExpectExpression Do
+	While True Do
 		If InitOfExpression.Find(Parser.Tok) <> Undefined Then
 			ExprList.Add(ParseExpression(Parser));
 		Else
@@ -1554,7 +1545,7 @@ Function ParseArguments(Parser)
 		If Parser.Tok = Tokens.Comma Then
 			Next(Parser);
 		Else
-			ExpectExpression = False;
+			Break;
 		EndIf;
 	EndDo;
 	Return ExprList;
@@ -1599,67 +1590,12 @@ Function ParseParenExpr(Parser)
 	Return ParenExpr(Expr, Place(Parser, Pos, Line));
 EndFunction // ParseParenExpr()
 
-Function ParsePrepExpression(Parser)
-	Var Expr, Operator, Pos, Line;
-	Pos = Parser.BegPos;
-	Line = Parser.Line;
-	Expr = ParsePrepAndExpr(Parser);
-	While Parser.Tok = Tokens.Or Do
-		Operator = Parser.Tok;
-		Next(Parser);
-		Expr = BinaryExpr(Expr, Operator, ParsePrepAndExpr(Parser), Place(Parser, Pos, Line));
-	EndDo;
-	Return Expr;
-EndFunction // ParsePrepExpression()
-
-Function ParsePrepAndExpr(Parser)
-	Var Expr, Operator, Pos, Line;
-	Pos = Parser.BegPos;
-	Line = Parser.Line;
-	Expr = ParsePrepNotExpr(Parser);
-	While Parser.Tok = Tokens.And Do
-		Operator = Parser.Tok;
-		Next(Parser);
-		Expr = BinaryExpr(Expr, Operator, ParsePrepNotExpr(Parser), Place(Parser, Pos, Line));
-	EndDo;
-	Return Expr;
-EndFunction // ParsePrepAndExpr()
-
-Function ParsePrepNotExpr(Parser)
-	Var Expr, Pos, Line;
-	Pos = Parser.BegPos;
-	Line = Parser.Line;
-	If Parser.Tok = Tokens.Not Then
-		Next(Parser);
-		Expr = NotExpr(ParsePrepOperand(Parser), Place(Parser, Pos, Line));
-	Else
-		Expr = ParsePrepOperand(Parser);
-	EndIf;
-	Return Expr;
-EndFunction // ParsePrepNotExpr()
-
-Function ParsePrepOperand(Parser)
-	Var Operand, Object;
-	If Parser.Tok = Tokens.Ident Then
-		If PrepSymbols.Property(Parser.Lit) Then
-			Object = PrepSymbol(Parser.Lit);
-		Else
-			Object = Unknown(Parser.Lit);
-		EndIf;
-		Operand = DesigExpr(Object, EmptyArray, False, Place(Parser));
-		Next(Parser);
-	Else
-		Error(Parser, "Expected operand",, True);
-	EndIf;
-	Return Operand;
-EndFunction // ParsePrepOperand()
-
 #EndRegion // ParseExpr
 
 #Region ParseDecl
 
 Function ParseModDecls(Parser)
-	Var Tok, Decls;
+	Var Tok, Decls, Inst;
 	Tok = Parser.Tok;
 	Decls = New Array;
 	While Tok = Tokens.Directive Do
@@ -1667,8 +1603,10 @@ Function ParseModDecls(Parser)
 		Tok = Next(Parser);
 	EndDo;
 	While True Do
+		Pos = Parser.BegPos;
+		Line = Parser.Line;
 		If Tok = Tokens.Var And Parser.AllowVar Then
-			Decls.Add(ParseModVarListDecl(Parser));
+			Decls.Add(ParseVarModDecl(Parser));
 		ElsIf Tok = Tokens.Function Then
 			Decls.Add(ParseFuncDecl(Parser));
 			Parser.AllowVar = False;
@@ -1676,11 +1614,31 @@ Function ParseModDecls(Parser)
 			Decls.Add(ParseProcDecl(Parser));
 			Parser.AllowVar = False;
 		ElsIf Tok = Tokens._Region Then
-			Decls.Add(ParsePrepRegionDecl(Parser));
+			Inst = ParsePrepRegionInst(Parser);
+			Next(Parser);
+			Inst.Place = Place(Parser, Pos, Line);
+			Decls.Add(Inst);
+		ElsIf Tok = Tokens._EndRegion Then
+			Next(Parser);
+			Decls.Add(PrepEndRegionInst(Place(Parser, Pos, Line)));
 		ElsIf Tok = Tokens._If Then
-			Decls.Add(ParsePrepIfDecl(Parser));
+			Inst = ParsePrepIfInst(Parser);
+			Next(Parser);
+			Inst.Place = Place(Parser, Pos, Line);
+			Decls.Add(Inst);
+		ElsIf Tok = Tokens._ElsIf Then
+			Inst = ParsePrepElsIfInst(Parser);
+			Next(Parser);
+			Inst.Place = Place(Parser, Pos, Line);
+			Decls.Add(Inst);
+		ElsIf Tok = Tokens._Else Then
+			Next(Parser);
+			Decls.Add(PrepElseInst(Place(Parser, Pos, Line)));
+		ElsIf Tok = Tokens._EndIf Then
+			Next(Parser);
+			Decls.Add(PrepEndIfInst(Place(Parser, Pos, Line)));
 		ElsIf Tok = Tokens._Use Then
-			Decls.Add(ParsePrepUseDecl(Parser));
+			Decls.Add(ParsePrepUseInst(Parser));
 		Else
 			Break;
 		EndIf;
@@ -1694,24 +1652,25 @@ Function ParseModDecls(Parser)
 	Return Decls;
 EndFunction // ParseModDecls()
 
-Function ParseModVarListDecl(Parser)
-	Var VarList, Pos, Line;
-	Next(Parser);
+Function ParseVarModDecl(Parser)
+	Var VarList, Decl, Pos, Line;
 	Pos = Parser.BegPos;
 	Line = Parser.Line;
+	Next(Parser);
 	VarList = New Array;
 	VarList.Add(ParseVarMod(Parser));
 	While Parser.Tok = Tokens.Comma Do
 		Next(Parser);
 		VarList.Add(ParseVarMod(Parser));
 	EndDo;
+	Decl = VarModDecl(Parser.Directive, VarList, Place(Parser, Pos, Line));
 	Expect(Parser, Tokens.Semicolon);
 	Next(Parser);
 	While Parser.Tok = Tokens.Semicolon Do
 		Next(Parser);
 	EndDo;
-	Return VarModListDecl(Parser.Directive, VarList, Place(Parser, Pos, Line));
-EndFunction // ParseModVarListDecl()
+	Return Decl;
+EndFunction // ParseVarModDecl()
 
 Function ParseVarMod(Parser)
 	Var Name, Object, Exported, Pos;
@@ -1740,29 +1699,29 @@ Function ParseVarDecls(Parser)
 	Decls = New Array;
 	Tok = Parser.Tok;
 	While Tok = Tokens.Var Do
-		Next(Parser);
-		Decls.Add(ParseVarListDecl(Parser));
+		Decls.Add(ParseVarLocDecl(Parser));
 		Expect(Parser, Tokens.Semicolon);
 		Tok = Next(Parser);
 	EndDo;
 	Return Decls;
 EndFunction // ParseVarDecls()
 
-Function ParseVarListDecl(Parser)
+Function ParseVarLocDecl(Parser)
 	Var VarList, Pos, Line;
 	Pos = Parser.BegPos;
 	Line = Parser.Line;
+	Next(Parser);
 	VarList = New Array;
 	VarList.Add(ParseVarLoc(Parser));
 	While Parser.Tok = Tokens.Comma Do
 		Next(Parser);
 		VarList.Add(ParseVarLoc(Parser));
 	EndDo;
-	Return VarLocListDecl(VarList, Place(Parser, Pos, Line));
-EndFunction // ParseVarListDecl()
+	Return VarLocDecl(VarList, Place(Parser, Pos, Line));
+EndFunction // ParseVarLocDecl()
 
 Function ParseVarLoc(Parser)
-	Var Name, Object, Exported, Pos;
+	Var Name, Object, Pos;
 	Pos = Parser.BegPos;
 	Expect(Parser, Tokens.Ident);
 	Name = Parser.Lit;
@@ -1906,79 +1865,6 @@ Function ParseParameter(Parser)
 	Return Object;
 EndFunction // ParseParameter()
 
-Function ParsePrepIfDecl(Parser)
-	Var Tok, Cond, ThenPart, ElsePart;
-	Var ElsIfPart, ElsIfCond, ElsIfThen, BegPos, Pos, Line;
-	BegPos = Parser.BegPos;
-	Line = Parser.Line;
-	Next(Parser);
-	Cond = ParsePrepExpression(Parser);
-	Expect(Parser, Tokens.Then);
-	Next(Parser);
-	ThenPart = ParseModDecls(Parser);
-	Tok = Parser.Tok;
-	If Tok = Tokens._ElsIf Then
-		ElsIfPart = New Array;
-		While Tok = Tokens._ElsIf Do
-			Pos = Parser.BegPos;
-			Line = Parser.Line;
-			Next(Parser);
-			ElsIfCond = ParsePrepExpression(Parser);
-			Expect(Parser, Tokens.Then);
-			Next(Parser);
-			ElsIfThen = ParseModDecls(Parser);
-			ElsIfPart.Add(PrepElsIfDecl(ElsIfCond, ElsIfThen, Place(Parser, Pos, Line)));
-			Tok = Parser.Tok;
-		EndDo;
-	EndIf;
-	If Tok = Tokens._Else Then
-		Next(Parser);
-		ElsePart = ParseModDecls(Parser);
-	EndIf;
-	Expect(Parser, Tokens._EndIf);
-	Next(Parser);
-	Return PrepIfDecl(Cond, ThenPart, ElsIfPart, ElsePart, Place(Parser, BegPos, Line));
-EndFunction // ParsePrepIfDecl()
-
-Function ParsePrepRegionDecl(Parser)
-	Var Name, Decls, Statements, Region, Pos, Line;
-	Pos = Parser.BegPos;
-	Line = Parser.Line;
-	Next(Parser);
-	Expect(Parser, Tokens.Ident);
-	Name = Parser.Lit;
-	Next(Parser);
-	Decls = ParseModDecls(Parser);
-	Statements = ParseStatements(Parser);
-	Expect(Parser, Tokens._EndRegion);
-	Next(Parser);
-	Return PrepRegionDecl(Name, Decls, Statements, Place(Parser, Pos, Line));
-EndFunction // ParsePrepRegionDecl()
-
-Function ParsePrepUseDecl(Parser)
-	Var Path, Pos, Line;
-	Pos = Parser.BegPos;
-	Line = Parser.Line;
-	Next(Parser);
-	If Line <> Parser.Line Then
-		Error(Parser, "Expected string or identifier", Parser.EndPos, True);
-	EndIf;
-	If Parser.Tok = Tokens.Number Then
-		Path = Parser.Lit;
-		If AlphaDigitMap[Parser.Char] = Alpha Then // can be a keyword
-			Next(Parser);
-			Path = Path + Parser.Lit;
-		EndIf;
-	ElsIf Parser.Tok = Tokens.Ident
-		Or Parser.Tok = Tokens.String Then
-		Path = Parser.Lit;
-	Else
-		Error(Parser, "Expected string or identifier", Parser.EndPos, True);
-	EndIf;
-	Next(Parser);
-	Return PrepUseDecl(Path, Place(Parser, Pos, Line));
-EndFunction // ParsePrepUseDecl()
-
 #EndRegion // ParseDecl
 
 #Region ParseStmt
@@ -1990,8 +1876,12 @@ Function ParseStatements(Parser)
 	If Stmt <> Undefined Then
 		Statements.Add(Stmt);
 	EndIf;
-	While Parser.Tok = Tokens.Semicolon Do
-		Next(Parser);
+	While True Do
+		If Parser.Tok = Tokens.Semicolon Then
+			Next(Parser);
+		ElsIf Not Left(Parser.Tok, 1) = "_" Then
+			Break;		
+		EndIf; 
 		Stmt = ParseStmt(Parser);
 		If Stmt <> Undefined Then
 			Statements.Add(Stmt);
@@ -2039,9 +1929,20 @@ Function ParseStmt(Parser)
 		Expect(Parser, Tokens.Colon);
 		Parser.Tok = Tokens.Semicolon; // cheat code
 	ElsIf Tok = Tokens._Region Then
-		Stmt = ParsePrepRegionStmt(Parser);
+		Stmt = ParsePrepRegionInst(Parser);
+	ElsIf Tok = Tokens._EndRegion Then
+		Stmt = PrepEndRegionInst();
+		Parser.Tok = Tokens.Semicolon; // cheat code
 	ElsIf Tok = Tokens._If Then
-		Stmt = ParsePrepIfStmt(Parser);
+		Stmt = ParsePrepIfInst(Parser);
+	ElsIf Tok = Tokens._ElsIf Then
+		Stmt = ParsePrepElsIfInst(Parser);
+	ElsIf Tok = Tokens._Else Then
+		Stmt = PrepElseInst();
+		Parser.Tok = Tokens.Semicolon; // cheat code
+	ElsIf Tok = Tokens._EndIf Then
+		Stmt = PrepEndIfInst();
+		Parser.Tok = Tokens.Semicolon; // cheat code
 	ElsIf Tok = Tokens.Semicolon Then
 		// NOP
 	EndIf;
@@ -2052,16 +1953,14 @@ Function ParseStmt(Parser)
 EndFunction // ParseStmt()
 
 Function ParseRaiseStmt(Parser)
-	Var Tok, Expr;
-	Next(Parser);
-	If InitOfExpression.Find(Parser.Tok) <> Undefined Then
+	Var Expr;
+	If InitOfExpression.Find(Next(Parser)) <> Undefined Then
 		Expr = ParseExpression(Parser);
 	EndIf;
 	Return RaiseStmt(Expr);
 EndFunction // ParseRaiseStmt()
 
 Function ParseExecuteStmt(Parser)
-	Var Expr;
 	Next(Parser);
 	Return ExecuteStmt(ParseExpression(Parser));
 EndFunction // ParseExecuteStmt()
@@ -2167,7 +2066,7 @@ Function ParseForStmt(Parser)
 EndFunction // ParseForStmt()
 
 Function ParseForEachStmt(Parser)
-	Var DesigExpr, Left, Right, Collection, Statements, VarPos, NewVar;
+	Var DesigExpr, Collection, Statements, VarPos, NewVar;
 	Next(Parser);
 	Expect(Parser, Tokens.Ident);
 	VarPos = Parser.BegPos;
@@ -2210,51 +2109,117 @@ Function ParseReturnStmt(Parser)
 	Return ReturnStmt(Expr, Place(Parser, Pos, Line));
 EndFunction // ParseReturnStmt()
 
-Function ParsePrepIfStmt(Parser)
-	Var Tok, Cond, ThenPart, ElsePart;
-	Var ElsIfPart, ElsIfCond, ElsIfThen, Pos, Line;
+#EndRegion // ParseStmt
+
+#Region ParsePrep
+
+// Expr
+
+Function ParsePrepExpression(Parser)
+	Var Expr, Operator, Pos, Line;
+	Pos = Parser.BegPos;
+	Line = Parser.Line;
+	Expr = ParsePrepAndExpr(Parser);
+	While Parser.Tok = Tokens.Or Do
+		Operator = Parser.Tok;
+		Next(Parser);
+		Expr = PrepBinaryExpr(Expr, Operator, ParsePrepAndExpr(Parser), Place(Parser, Pos, Line));
+	EndDo;
+	Return Expr;
+EndFunction // ParsePrepExpression()
+
+Function ParsePrepAndExpr(Parser)
+	Var Expr, Operator, Pos, Line;
+	Pos = Parser.BegPos;
+	Line = Parser.Line;
+	Expr = ParsePrepNotExpr(Parser);
+	While Parser.Tok = Tokens.And Do
+		Operator = Parser.Tok;
+		Next(Parser);
+		Expr = PrepBinaryExpr(Expr, Operator, ParsePrepNotExpr(Parser), Place(Parser, Pos, Line));
+	EndDo;
+	Return Expr;
+EndFunction // ParsePrepAndExpr()
+
+Function ParsePrepNotExpr(Parser)
+	Var Expr, Pos, Line;
+	Pos = Parser.BegPos;
+	Line = Parser.Line;
+	If Parser.Tok = Tokens.Not Then
+		Next(Parser);
+		Expr = PrepNotExpr(ParsePrepSymExpr(Parser), Place(Parser, Pos, Line));
+	Else
+		Expr = ParsePrepSymExpr(Parser);
+	EndIf;
+	Return Expr;
+EndFunction // ParsePrepNotExpr()
+
+Function ParsePrepSymExpr(Parser)
+	Var Operand, SymbolExist;
+	If Parser.Tok = Tokens.Ident Then
+		SymbolExist = PrepSymbols.Property(Parser.Lit);
+		Operand = PrepSymExpr(Parser.Lit, SymbolExist, Place(Parser));
+		Next(Parser);
+	Else
+		Error(Parser, "Expected preprocessor symbol",, True);
+	EndIf;
+	Return Operand;
+EndFunction // ParsePrepSymExpr()
+
+// Inst
+
+Function ParsePrepUseInst(Parser)
+	Var Path, Pos, Line;
+	Pos = Parser.BegPos;
+	Line = Parser.Line;
+	Next(Parser);
+	If Line <> Parser.Line Then
+		Error(Parser, "Expected string or identifier", Parser.EndPos, True);
+	EndIf;
+	If Parser.Tok = Tokens.Number Then
+		Path = Parser.Lit;
+		If AlphaDigitMap[Parser.Char] = Alpha Then // can be a keyword
+			Next(Parser);
+			Path = Path + Parser.Lit;
+		EndIf;
+	ElsIf Parser.Tok = Tokens.Ident
+		Or Parser.Tok = Tokens.String Then
+		Path = Parser.Lit;
+	Else
+		Error(Parser, "Expected string or identifier", Parser.EndPos, True);
+	EndIf;
+	Next(Parser);
+	Return PrepUseInst(Path, Place(Parser, Pos, Line));
+EndFunction // ParsePrepUseInst()
+
+Function ParsePrepIfInst(Parser)
+	Var Cond;
 	Next(Parser);
 	Cond = ParsePrepExpression(Parser);
 	Expect(Parser, Tokens.Then);
-	Next(Parser);
-	ThenPart = ParseStatements(Parser);
-	Tok = Parser.Tok;
-	If Tok = Tokens._ElsIf Then
-		ElsIfPart = New Array;
-		While Tok = Tokens._ElsIf Do
-			Pos = Parser.BegPos;
-			Line = Parser.Line;
-			Next(Parser);
-			ElsIfCond = ParsePrepExpression(Parser);
-			Expect(Parser, Tokens.Then);
-			Next(Parser);
-			ElsIfThen = ParseStatements(Parser);
-			ElsIfPart.Add(PrepElsIfStmt(ElsIfCond, ElsIfThen, Place(Parser, Pos, Line)));
-			Tok = Parser.Tok;
-		EndDo;
-	EndIf;
-	If Tok = Tokens._Else Then
-		Next(Parser);
-		ElsePart = ParseStatements(Parser);
-	EndIf;
-	Expect(Parser, Tokens._EndIf);
 	Parser.Tok = Tokens.Semicolon; // cheat code
-	Return PrepIfStmt(Cond, ThenPart, ElsIfPart, ElsePart);
-EndFunction // ParsePrepIfStmt()
+	Return PrepIfInst(Cond);
+EndFunction // ParsePrepIfInst()
 
-Function ParsePrepRegionStmt(Parser)
-	Var Name, Statements;
+Function ParsePrepElsIfInst(Parser)
+	Var Cond;
+	Next(Parser);
+	Cond = ParsePrepExpression(Parser);
+	Expect(Parser, Tokens.Then);
+	Parser.Tok = Tokens.Semicolon; // cheat code
+	Return PrepElsIfInst(Cond);
+EndFunction // ParsePrepElsIfInst()
+
+Function ParsePrepRegionInst(Parser)
+	Var Name;
 	Next(Parser);
 	Expect(Parser, Tokens.Ident);
 	Name = Parser.Lit;
-	Next(Parser);
-	Statements = ParseStatements(Parser);
-	Expect(Parser, Tokens._EndRegion);
 	Parser.Tok = Tokens.Semicolon; // cheat code
-	Return PrepRegionStmt(Name, Statements);
-EndFunction // ParsePrepRegionStmt()
+	Return PrepRegionInst(Name);
+EndFunction // ParsePrepRegionInst()
 
-#EndRegion // ParseStmt
+#EndRegion // ParsePrep
 
 #EndRegion // Parser
 
@@ -2343,7 +2308,7 @@ EndProcedure // Error()
 #Region Visitor
 
 Function Visitor(Hooks) Export
-	Var Visitor;
+	Var Visitor, Counters, Item;
 
 	Visitor = New Structure( // @Class
 		"Hooks,"    // structure as map[string] (array)
@@ -2364,31 +2329,31 @@ Function Visitor(Hooks) Export
 EndFunction // Visitor()
 
 Procedure PushInfo(Visitor, Parent)
+	Var NodeType;
 	Visitor.Stack = New FixedStructure("Outer, Parent", Visitor.Stack, Parent);
 	NodeType = Parent.Type;
 	Visitor.Counters[NodeType] = Visitor.Counters[NodeType] + 1;
 EndProcedure // PushInfo()
 
 Procedure PopInfo(Visitor)
+	Var NodeType;
 	NodeType = Visitor.Stack.Parent.Type;
 	Visitor.Counters[NodeType] = Visitor.Counters[NodeType] - 1;
 	Visitor.Stack = Visitor.Stack.Outer;
 EndProcedure // PopInfo()
 
 Function Hooks() Export
+	Var Hooks, Item;
 
 	Hooks = New Structure(
 		"VisitModule,         AfterVisitModule,"
 		"VisitDeclarations,   AfterVisitDeclarations,"
 		"VisitStatements,     AfterVisitStatements,"
 		"VisitDecl,           AfterVisitDecl,"
-		"VisitVarModListDecl, AfterVisitVarModListDecl,"
-		"VisitVarLocListDecl, AfterVisitVarLocListDecl,"
+		"VisitVarModDecl,     AfterVisitVarModDecl,"
+		"VisitVarLocDecl,     AfterVisitVarLocDecl,"
 		"VisitProcDecl,       AfterVisitProcDecl,"
 		"VisitFuncDecl,       AfterVisitFuncDecl,"
-		"VisitPrepIfDecl,     AfterVisitPrepIfDecl,"
-		"VisitPrepElsIfDecl,  AfterVisitPrepElsIfDecl,"
-		"VisitPrepRegionDecl, AfterVisitPrepRegionDecl,"
 		"VisitExpr,           AfterVisitExpr,"
 		"VisitBasicLitExpr,   AfterVisitBasicLitExpr,"
 		"VisitDesigExpr,      AfterVisitDesigExpr,"
@@ -2409,15 +2374,17 @@ Function Hooks() Export
 		"VisitCallStmt,       AfterVisitCallStmt,"
 		"VisitIfStmt,         AfterVisitIfStmt,"
 		"VisitElsIfStmt,      AfterVisitElsIfStmt,"
-		"VisitPrepIfStmt,     AfterVisitPrepIfStmt,"
-		"VisitPrepElsIfStmt,  AfterVisitPrepElsIfStmt,"
 		"VisitWhileStmt,      AfterVisitWhileStmt,"
-		"VisitPrepRegionStmt, AfterVisitPrepRegionStmt,"
 		"VisitForStmt,        AfterVisitForStmt,"
 		"VisitForEachStmt,    AfterVisitForEachStmt,"
 		"VisitTryStmt,        AfterVisitTryStmt,"
 		"VisitGotoStmt,       AfterVisitGotoStmt,"
-		"VisitLabelStmt,      AfterVisitLabelStmt"
+		"VisitLabelStmt,      AfterVisitLabelStmt,"
+		"VisitPrepInst,       AfterVisitPrepInst,"
+		"VisitPrepExpr,       AfterVisitPrepExpr,"
+		"VisitPrepBinaryExpr, AfterVisitPrepBinaryExpr,"
+		"VisitPrepNotExpr,    AfterVisitPrepNotExpr,"
+		"VisitPrepSymExpr,    AfterVisitPrepSymExpr"
 	);
 	For Each Item In Hooks Do
 		Hooks[Item.Key] = New Array;
@@ -2475,45 +2442,47 @@ Procedure VisitDecl(Visitor, Decl)
 		Hook.VisitDecl(Decl, Visitor.Stack, Visitor.Counters);
 	EndDo;
 	Type = Decl.Type;
-	If Type = Nodes.VarModListDecl Then
-		VisitVarModListDecl(Visitor, Decl);
-	ElsIf Type = Nodes.VarLocListDecl Then
-		VisitVarLocListDecl(Visitor, Decl);
+	If Type = Nodes.VarModDecl Then
+		VisitVarModDecl(Visitor, Decl);
+	ElsIf Type = Nodes.VarLocDecl Then
+		VisitVarLocDecl(Visitor, Decl);
 	ElsIf Type = Nodes.ProcDecl Then
 		VisitProcDecl(Visitor, Decl);
 	ElsIf Type = Nodes.FuncDecl Then
 		VisitFuncDecl(Visitor, Decl);
-	ElsIf Type = Nodes.PrepIfDecl Then
-		VisitPrepIfDecl(Visitor, Decl);
-	ElsIf Type = Nodes.PrepElsIfDecl Then
-		VisitPrepElsIfDecl(Visitor, Decl);
-	ElsIf Type = Nodes.PrepRegionDecl Then
-		VisitPrepRegionDecl(Visitor, Decl);
+	ElsIf Type = Nodes.PrepRegionInst
+		Or Type = Nodes.PrepEndRegionInst
+		Or Type = Nodes.PrepIfInst
+		Or Type = Nodes.PrepElsIfInst
+		Or Type = Nodes.PrepElseInst
+		Or Type = Nodes.PrepEndIfInst
+		Or Type = Nodes.PrepUseInst Then
+		VisitPrepInst(Visitor, Decl);
 	EndIf;
 	For Each Hook In Visitor.Hooks.AfterVisitDecl Do
 		Hook.AfterVisitDecl(Decl, Visitor.Stack, Visitor.Counters);
 	EndDo;
 EndProcedure // VisitDecl()
 
-Procedure VisitVarModListDecl(Visitor, VarModListDecl)
+Procedure VisitVarModDecl(Visitor, VarModDecl)
 	Var Hook;
-	For Each Hook In Visitor.Hooks.VisitVarModListDecl Do
-		Hook.VisitVarModListDecl(VarModListDecl, Visitor.Stack, Visitor.Counters);
+	For Each Hook In Visitor.Hooks.VisitVarModDecl Do
+		Hook.VisitVarModDecl(VarModDecl, Visitor.Stack, Visitor.Counters);
 	EndDo;
-	For Each Hook In Visitor.Hooks.AfterVisitVarModListDecl Do
-		Hook.AfterVisitVarModListDecl(VarModListDecl, Visitor.Stack, Visitor.Counters);
+	For Each Hook In Visitor.Hooks.AfterVisitVarModDecl Do
+		Hook.AfterVisitVarModDecl(VarModDecl, Visitor.Stack, Visitor.Counters);
 	EndDo;
-EndProcedure // VisitVarModListDecl()
+EndProcedure // VisitVarModDecl()
 
-Procedure VisitVarLocListDecl(Visitor, VarLocListDecl)
+Procedure VisitVarLocDecl(Visitor, VarLocDecl)
 	Var Hook;
-	For Each Hook In Visitor.Hooks.VisitVarLocListDecl Do
-		Hook.VisitVarLocListDecl(VarLocListDecl, Visitor.Stack, Visitor.Counters);
+	For Each Hook In Visitor.Hooks.VisitVarLocDecl Do
+		Hook.VisitVarLocDecl(VarLocDecl, Visitor.Stack, Visitor.Counters);
 	EndDo;
-	For Each Hook In Visitor.Hooks.AfterVisitVarLocListDecl Do
-		Hook.AfterVisitVarLocListDecl(VarLocListDecl, Visitor.Stack, Visitor.Counters);
+	For Each Hook In Visitor.Hooks.AfterVisitVarLocDecl Do
+		Hook.AfterVisitVarLocDecl(VarLocDecl, Visitor.Stack, Visitor.Counters);
 	EndDo;
-EndProcedure // VisitVarLocListDecl()
+EndProcedure // VisitVarLocDecl()
 
 Procedure VisitProcDecl(Visitor, ProcDecl)
 	Var Hook;
@@ -2543,63 +2512,13 @@ Procedure VisitFuncDecl(Visitor, FuncDecl)
 	EndDo;
 EndProcedure // VisitFuncDecl()
 
-Procedure VisitPrepIfDecl(Visitor, PrepIfDecl)
-	Var Hook;
-	For Each Hook In Visitor.Hooks.VisitPrepIfDecl Do
-		Hook.VisitPrepIfDecl(PrepIfDecl, Visitor.Stack, Visitor.Counters);
-	EndDo;
-	PushInfo(Visitor, PrepIfDecl);
-	VisitExpr(Visitor, PrepIfDecl.Cond);
-	VisitDeclarations(Visitor, PrepIfDecl.Then);
-	If PrepIfDecl.ElsIf <> Undefined Then
-		For Each PrepElsIfDecl In PrepIfDecl.ElsIf Do
-			VisitPrepElsIfDecl(Visitor, PrepElsIfDecl);
-		EndDo;
-	EndIf;
-	If PrepIfDecl.Else <> Undefined Then
-		VisitDeclarations(Visitor, PrepIfDecl.Else);
-	EndIf;
-	PopInfo(Visitor);
-	For Each Hook In Visitor.Hooks.AfterVisitPrepIfDecl Do
-		Hook.AfterVisitPrepIfDecl(PrepIfDecl, Visitor.Stack, Visitor.Counters);
-	EndDo;
-EndProcedure // VisitPrepIfDecl()
-
-Procedure VisitPrepElsIfDecl(Visitor, PrepElsIfDecl)
-	Var Hook;
-	For Each Hook In Visitor.Hooks.VisitPrepElsIfDecl Do
-		Hook.VisitPrepElsIfDecl(PrepElsIfDecl, Visitor.Stack, Visitor.Counters);
-	EndDo;
-	PushInfo(Visitor, PrepElsIfDecl);
-	VisitExpr(Visitor, PrepElsIfDecl.Cond);
-	VisitDeclarations(Visitor, PrepElsIfDecl.Then);
-	PopInfo(Visitor);
-	For Each Hook In Visitor.Hooks.AfterVisitPrepElsIfDecl Do
-		Hook.AfterVisitPrepElsIfDecl(PrepElsIfDecl, Visitor.Stack, Visitor.Counters);
-	EndDo;
-EndProcedure // VisitPrepElsIfDecl()
-
-Procedure VisitPrepRegionDecl(Visitor, PrepRegionDecl)
-	Var Hook, Decl, Stmt;
-	For Each Hook In Visitor.Hooks.VisitPrepRegionDecl Do
-		Hook.VisitPrepRegionDecl(PrepRegionDecl, Visitor.Stack, Visitor.Counters);
-	EndDo;
-	PushInfo(Visitor, PrepRegionDecl);
-	VisitDeclarations(Visitor, PrepRegionDecl.Decls);
-	VisitStatements(Visitor, PrepRegionDecl.Body);
-	PopInfo(Visitor);
-	For Each Hook In Visitor.Hooks.AfterVisitPrepRegionDecl Do
-		Hook.AfterVisitPrepRegionDecl(PrepRegionDecl, Visitor.Stack, Visitor.Counters);
-	EndDo;
-EndProcedure // VisitPrepRegionDecl()
-
 #EndRegion // VisitDecl
 
 #Region VisitExpr
 
 Procedure VisitExpr(Visitor, Expr)
 	Var Type, Hook;
-	For Each Hook In Visitor.Hooks.VisitBasicLitExpr Do
+	For Each Hook In Visitor.Hooks.VisitExpr Do
 		Hook.VisitExpr(Expr, Visitor.Stack, Visitor.Counters);
 	EndDo;
 	Type = Expr.Type;
@@ -2622,7 +2541,7 @@ Procedure VisitExpr(Visitor, Expr)
 	ElsIf Type = Nodes.StringExpr Then
 		VisitStringExpr(Visitor, Expr);
 	EndIf;
-	For Each Hook In Visitor.Hooks.AfterVisitBasicLitExpr Do
+	For Each Hook In Visitor.Hooks.AfterVisitExpr Do
 		Hook.AfterVisitExpr(Expr, Visitor.Stack, Visitor.Counters);
 	EndDo;
 EndProcedure // VisitExpr()
@@ -2795,12 +2714,8 @@ Procedure VisitStmt(Visitor, Stmt)
 		VisitCallStmt(Visitor, Stmt);
 	ElsIf Type = Nodes.IfStmt Then
 		VisitIfStmt(Visitor, Stmt);
-	ElsIf Type = Nodes.PrepIfStmt Then
-		VisitPrepIfStmt(Visitor, Stmt);
 	ElsIf Type = Nodes.WhileStmt Then
 		VisitWhileStmt(Visitor, Stmt);
-	ElsIf Type = Nodes.PrepRegionStmt Then
-		VisitPrepRegionStmt(Visitor, Stmt);
 	ElsIf Type = Nodes.ForStmt Then
 		VisitForStmt(Visitor, Stmt);
 	ElsIf Type = Nodes.ForEachStmt Then
@@ -2811,6 +2726,13 @@ Procedure VisitStmt(Visitor, Stmt)
 		VisitGotoStmt(Visitor, Stmt);
 	ElsIf Type = Nodes.LabelStmt Then
 		VisitLabelStmt(Visitor, Stmt);
+	ElsIf Type = Nodes.PrepRegionInst
+		Or Type = Nodes.PrepEndRegionInst
+		Or Type = Nodes.PrepIfInst
+		Or Type = Nodes.PrepElsIfInst
+		Or Type = Nodes.PrepElseInst
+		Or Type = Nodes.PrepEndIfInst Then
+		VisitPrepInst(Visitor, Stmt);
 	EndIf;
 	For Each Hook In Visitor.Hooks.AfterVisitStmt Do
 		Hook.AfterVisitStmt(Stmt, Visitor.Stack, Visitor.Counters);
@@ -2943,42 +2865,6 @@ Procedure VisitElsIfStmt(Visitor, ElsIfStmt)
 	EndDo;
 EndProcedure // VisitElsIfStmt()
 
-Procedure VisitPrepIfStmt(Visitor, PrepIfStmt)
-	Var PrepElsIfStmt, Hook;
-	For Each Hook In Visitor.Hooks.VisitPrepIfStmt Do
-		Hook.VisitPrepIfStmt(PrepIfStmt, Visitor.Stack, Visitor.Counters);
-	EndDo;
-	PushInfo(Visitor, PrepIfStmt);
-	VisitExpr(Visitor, PrepIfStmt.Cond);
-	VisitStatements(Visitor, PrepIfStmt.Then);
-	If PrepIfStmt.ElsIf <> Undefined Then
-		For Each PrepElsIfStmt In PrepIfStmt.ElsIf Do
-			VisitPrepElsIfStmt(Visitor, PrepElsIfStmt);
-		EndDo;
-	EndIf;
-	If PrepIfStmt.Else <> Undefined Then
-		VisitStatements(Visitor, PrepIfStmt.Else);
-	EndIf;
-	PopInfo(Visitor);
-	For Each Hook In Visitor.Hooks.AfterVisitPrepIfStmt Do
-		Hook.AfterVisitPrepIfStmt(PrepIfStmt, Visitor.Stack, Visitor.Counters);
-	EndDo;
-EndProcedure // VisitPrepIfStmt()
-
-Procedure VisitPrepElsIfStmt(Visitor, PrepElsIfStmt)
-	Var Hook;
-	For Each Hook In Visitor.Hooks.VisitPrepElsIfStmt Do
-		Hook.VisitPrepElsIfStmt(PrepElsIfStmt, Visitor.Stack, Visitor.Counters);
-	EndDo;
-	PushInfo(Visitor, PrepElsIfStmt);
-	VisitExpr(Visitor, PrepElsIfStmt.Cond);
-	VisitStatements(Visitor, PrepElsIfStmt.Then);
-	PopInfo(Visitor);
-	For Each Hook In Visitor.Hooks.AfterVisitPrepElsIfStmt Do
-		Hook.AfterVisitPrepElsIfStmt(PrepElsIfStmt, Visitor.Stack, Visitor.Counters);
-	EndDo;
-EndProcedure // VisitPrepElsIfStmt()
-
 Procedure VisitWhileStmt(Visitor, WhileStmt)
 	Var Hook;
 	For Each Hook In Visitor.Hooks.VisitWhileStmt Do
@@ -2992,19 +2878,6 @@ Procedure VisitWhileStmt(Visitor, WhileStmt)
 		Hook.AfterVisitWhileStmt(WhileStmt, Visitor.Stack, Visitor.Counters);
 	EndDo;
 EndProcedure // VisitWhileStmt()
-
-Procedure VisitPrepRegionStmt(Visitor, PrepRegionStmt)
-	Var Hook;
-	For Each Hook In Visitor.Hooks.VisitPrepRegionStmt Do
-		Hook.VisitPrepRegionStmt(PrepRegionStmt, Visitor.Stack, Visitor.Counters);
-	EndDo;
-	PushInfo(Visitor, PrepRegionStmt);
-	VisitStatements(Visitor, PrepRegionStmt.Body);
-	PopInfo(Visitor);
-	For Each Hook In Visitor.Hooks.AfterVisitPrepRegionStmt Do
-		Hook.AfterVisitPrepRegionStmt(PrepRegionStmt, Visitor.Stack, Visitor.Counters);
-	EndDo;
-EndProcedure // VisitPrepRegionStmt()
 
 Procedure VisitForStmt(Visitor, ForStmt)
 	Var Hook;
@@ -3072,6 +2945,80 @@ Procedure VisitLabelStmt(Visitor, LabelStmt)
 EndProcedure // VisitLabelStmt()
 
 #EndRegion // VisitStmt
+
+#Region VisitPrep
+
+Procedure VisitPrepExpr(Visitor, PrepExpr)
+	Var Type, Hook;
+	For Each Hook In Visitor.Hooks.VisitPrepExpr Do
+		Hook.VisitPrepExpr(PrepExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+	Type = PrepExpr.Type;
+	If Type = Nodes.PrepSymExpr Then
+		VisitPrepSymExpr(Visitor, PrepExpr);
+	ElsIf Type = Nodes.PrepBinaryExpr Then
+		VisitPrepBinaryExpr(Visitor, PrepExpr);
+	ElsIf Type = Nodes.PrepNotExpr Then
+		VisitPrepNotExpr(Visitor, PrepExpr);
+	EndIf;
+	For Each Hook In Visitor.Hooks.AfterVisitPrepExpr Do
+		Hook.AfterVisitPrepExpr(PrepExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+EndProcedure // VisitPrepExpr()
+
+Procedure VisitPrepSymExpr(Visitor, PrepSymExpr)
+	Var Hook;
+	For Each Hook In Visitor.Hooks.VisitPrepSymExpr Do
+		Hook.VisitPrepSymExpr(PrepSymExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+	For Each Hook In Visitor.Hooks.AfterVisitPrepSymExpr Do
+		Hook.AfterVisitPrepSymExpr(PrepSymExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+EndProcedure // VisitPrepSymExpr()
+
+Procedure VisitPrepBinaryExpr(Visitor, PrepBinaryExpr)
+	Var Hook;
+	For Each Hook In Visitor.Hooks.VisitPrepBinaryExpr Do
+		Hook.VisitPrepBinaryExpr(PrepBinaryExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+	PushInfo(Visitor, PrepBinaryExpr);
+	VisitPrepExpr(Visitor, PrepBinaryExpr.Left);
+	VisitPrepExpr(Visitor, PrepBinaryExpr.Right);
+	PopInfo(Visitor);
+	For Each Hook In Visitor.Hooks.AfterVisitPrepBinaryExpr Do
+		Hook.AfterVisitPrepBinaryExpr(PrepBinaryExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+EndProcedure // VisitPrepBinaryExpr()
+
+Procedure VisitPrepNotExpr(Visitor, PrepNotExpr)
+	Var Hook;
+	For Each Hook In Visitor.Hooks.VisitPrepNotExpr Do
+		Hook.VisitPrepNotExpr(PrepNotExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+	PushInfo(Visitor, PrepNotExpr);
+	VisitPrepExpr(Visitor, PrepNotExpr.Expr);
+	PopInfo(Visitor);
+	For Each Hook In Visitor.Hooks.AfterVisitPrepNotExpr Do
+		Hook.AfterVisitPrepNotExpr(PrepNotExpr, Visitor.Stack, Visitor.Counters);
+	EndDo;
+EndProcedure // VisitPrepNotExpr()
+
+Procedure VisitPrepInst(Visitor, PrepInst)
+	Var Hook;
+	For Each Hook In Visitor.Hooks.VisitPrepInst Do
+		Hook.VisitPrepInst(PrepInst, Visitor.Stack, Visitor.Counters);
+	EndDo;
+	PushInfo(Visitor, PrepInst);
+	If PrepInst.Property("Cond") Then
+		VisitPrepExpr(Visitor, PrepInst.Cond);
+	EndIf;
+	PopInfo(Visitor);
+	For Each Hook In Visitor.Hooks.AfterVisitPrepInst Do
+		Hook.AfterVisitPrepInst(PrepInst, Visitor.Stack, Visitor.Counters);
+	EndDo;
+EndProcedure // VisitPrepInst()
+
+#EndRegion // VisitPrep
 
 #EndRegion // Visitor
 
