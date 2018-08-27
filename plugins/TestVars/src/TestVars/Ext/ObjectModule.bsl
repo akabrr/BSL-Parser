@@ -6,7 +6,6 @@
 // - к параметру-ссылке нет обращений
 //
 // примечания:
-// В текущей реализации для простоты анализа присваивания внутри циклов считаются чтением.
 // Анализ в целом выполняется поверхностно и возможны ложные срабатывания.
 
 // todo: проверять два присваивания одной переменной подряд
@@ -30,87 +29,90 @@ EndFunction // Result()
 Function Interface() Export
 	Var Interface;
 	Interface = New Array;
-	Interface.Add("VisitAssignStmt");
+	Interface.Add("AfterVisitAssignStmt");
 	Interface.Add("VisitDesigExpr");
-	Interface.Add("VisitFuncDecl");
-	Interface.Add("VisitProcDecl");
-	Interface.Add("AfterVisitFuncDecl");
-	Interface.Add("AfterVisitProcDecl");
+	Interface.Add("VisitMethodDecl");
+	Interface.Add("AfterVisitMethodDecl");
 	Return Interface;
 EndFunction // Interface() 
 
-Procedure VisitAssignStmt(AssignStmt, Stack, Counters) Export
-	Var Object, Operation;
-	Operation = "Set";
-	If AssignStmt.Left.Select.Count() > 0 
-		Or Counters.WhileStmt > 0
-		Or Counters.ForEachStmt > 0
-		Or Counters.ForStmt > 0 Then
-		Operation = "Get";
+Procedure AfterVisitAssignStmt(AssignStmt, Stack, Counters) Export
+	Var Name, Decl, Operation; 
+	If AssignStmt.Left.Select.Count() > 0 Then
+		Return;
+	EndIf;
+	Name = AssignStmt.Left.Object.Name; 
+	Operation = Vars[Name];
+	If Operation <> Undefined Then
+		If Operation = "GetInLoop" Then
+			Vars[Name] = "Get";
+		Else
+			Vars[Name] = "Set";
+		EndIf;
+		Return;
+	EndIf; 	
+	Decl = AssignStmt.Left.Object.Decl;
+	Operation = Params[Decl];	
+	If Operation <> Undefined Then
+		If Operation = "GetInLoop" Then
+			Params[Decl] = "Get";
+		Else
+			Params[Decl] = "Set";
+		EndIf; 
 	EndIf; 
-	Object = AssignStmt.Left.Object;
-	If Vars[Object] <> Undefined Then
-		Vars[Object] = Operation;
-	ElsIf Params[Object] <> Undefined Then
-		Params[Object] = Operation;
-	EndIf; 
-EndProcedure // VisitAssignStmt()
+EndProcedure // AfterVisitAssignStmt()
 
 Procedure VisitDesigExpr(DesigExpr, Stack, Counters) Export
-	Var Object;
-	If Stack.Parent.Type = Nodes.AssignStmt
+	Var Name, Decl, Operation;
+	If DesigExpr.Select.Count() = 0
+		And Stack.Parent.Type = Nodes.AssignStmt
 		And Stack.Parent.Left = DesigExpr Then
 		Return;
 	EndIf;
-	Object = DesigExpr.Object;
-	If Vars[Object] <> Undefined Then
-		Vars[Object] = "Get";
-	ElsIf Params[Object] <> Undefined Then
-		Params[Object] = "Get";	
+	If Counters.WhileStmt + Counters.ForStmt + Counters.ForEachStmt > 0 Then
+		Operation = "GetInLoop";
+	Else
+		Operation = "Get";
+	EndIf; 
+	Name = DesigExpr.Object.Name;
+	Decl = DesigExpr.Object.Decl;
+	If Vars[Name] <> Undefined Then
+		Vars[Name] = Operation;
+	ElsIf Params[Decl] <> Undefined Then
+		Params[Decl] = Operation;	
 	EndIf; 
 EndProcedure // VisitDesigExpr()
 
-Procedure VisitFuncDecl(FuncDecl, Stack, Counters) Export
-	VisitMethodDecl(FuncDecl, Stack, Counters);
-EndProcedure // VisitFuncDecl()
-
-Procedure VisitProcDecl(ProcDecl, Stack, Counters) Export
-	VisitMethodDecl(ProcDecl, Stack, Counters);
-EndProcedure // VisitProcDecl()
-
-Procedure AfterVisitFuncDecl(FuncDecl, Stack, Counters) Export
-	AfterVisitMethodDecl(FuncDecl, Stack, Counters, "Функция");
-EndProcedure // AfterVisitFuncDecl()
-
-Procedure AfterVisitProcDecl(FuncDecl, Stack, Counters) Export
-	AfterVisitMethodDecl(FuncDecl, Stack, Counters, "Процедура");
-EndProcedure // AfterVisitProcDecl()
-
-Procedure VisitMethodDecl(MethodDecl, Stack, Counters)
+Procedure VisitMethodDecl(MethodDecl, Stack, Counters) Export
 	Vars = New Map;
 	Params = New Map;		
-	For Each Param In MethodDecl.Object.Params Do
-		Params[Param] = "Nil";
+	For Each Param In MethodDecl.Sign.Params Do
+		Params[Param] = "Get";
+		//Params[Param] = "Nil"; <- чтобы чекать все параметры (в формах адъ)
 	EndDo;
-	For Each VarLocListDecl In MethodDecl.Decls Do
-		For Each VarLoc In VarLocListDecl.List Do
-			Vars[VarLoc] = "Set";
-		EndDo;  
+	For Each VarLocDecl In MethodDecl.Vars Do
+		Vars[VarLocDecl.Name] = "Set";
 	EndDo;
-	For Each VarLoc In MethodDecl.Auto Do
-		Vars[VarLoc] = "Set";
+	For Each Object In MethodDecl.Auto Do
+		Vars[Object.Name] = "Set";
 	EndDo;
 EndProcedure // VisitMethodDecl()
 
-Procedure AfterVisitMethodDecl(FuncDecl, Stack, Counters, Method)
+Procedure AfterVisitMethodDecl(MethodDecl, Stack, Counters) Export
+	Var Method;
+	If MethodDecl.Sign.Type = Nodes.FuncSign Then
+		Method = "Функция";
+	Else
+		Method = "Процедура";
+	EndIf; 
 	For Each Item In Vars Do
-		If Item.Value <> "Get" Then
-			Result.Add(StrTemplate("%1 `%2()` содержит неиспользуемую переменную `%3`", Method, FuncDecl.Object.Name, Item.Key.Name));
+		If Not StrStartsWith(Item.Value, "Get") Then
+			Result.Add(StrTemplate("%1 `%2()` содержит неиспользуемую переменную `%3`", Method, MethodDecl.Sign.Name, Item.Key));
 		EndIf; 
 	EndDo;
 	For Each Item In Params Do
 		If Item.Value = "Nil" Or Item.Value = "Set" And Item.Key.ByVal Then
-			Result.Add(StrTemplate("%1 `%2()` содержит неиспользуемый параметр `%3`", Method, FuncDecl.Object.Name, Item.Key.Name));
+			Result.Add(StrTemplate("%1 `%2()` содержит неиспользуемый параметр `%3`", Method, MethodDecl.Sign.Name, Item.Key.Name));
 		EndIf; 
 	EndDo;
 EndProcedure // AfterVisitMethodDecl()

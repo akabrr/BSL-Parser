@@ -41,58 +41,40 @@ Procedure TranslateAtServer()
 
 	Start = CurrentUniversalDateInMilliseconds();
 
-	If Output = "Lexems" Then
+	If Output = "NULL" Then
 
-		Eof = BSLParser.Tokens().Eof;
-
-		Parser = BSLParser.Parser(Source.GetText());
-		Lexems = New Array;
-		While BSLParser.Next(Parser) <> Eof Do
-			Lexems.Add(StrTemplate("%1: %2 -- `%3`", Parser.Line, Parser.Tok, Parser.Lit));
-		EndDo;
-		
-		Result.SetText(StrConcat(Lexems, Chars.LF));
+		BSLParser.ParseModule(Source.GetText());
 		
 	ElsIf Output = "AST" Then
 
-		Parser = BSLParser.Parser(Source.GetText());
-		BSLParser.ParseModule(Parser);
+		Parser_Module = BSLParser.ParseModule(Source.GetText());
 		JSONWriter = New JSONWriter;
 		JSONWriter.SetString(New JSONWriterSettings(, Chars.Tab));
 		If ShowComments Then
 			Comments = New Map;
-			For Each Item In Parser.Module.Comments Do
+			For Each Item In Parser_Module.Comments Do
 				Comments[Format(Item.Key, "NZ=0; NG=")] = Item.Value;
 			EndDo;
-			Parser.Module.Comments = Comments;
+			Parser_Module.Comments = Comments;
 		Else
-			Parser.Module.Delete("Comments");
+			Parser_Module.Delete("Comments");
 		EndIf;
-		WriteJSON(JSONWriter, Parser.Module,, "ConvertJSON", ThisObject);
+		WriteJSON(JSONWriter, Parser_Module,, "ConvertJSON", ThisObject);
 		Result.SetText(JSONWriter.Close());
 		
 	ElsIf Output = "Tree" Then
 
-		Parser = BSLParser.Parser(Source.GetText());
-		BSLParser.ParseModule(Parser);
-		FillTree(Parser.Module);
+		Parser_Module = BSLParser.ParseModule(Source.GetText());
+		FillTree(Parser_Module);
 		
 	ElsIf Output = "Plugin" Then
-
-		PluginProcessor = ExternalDataProcessors.Create(PluginPath, False);
-		PluginProcessor.Init(BSLParser);
-		Parser = BSLParser.Parser(Source.GetText());
+		
 		BSLParser.Location = True;
-		BSLParser.ParseModule(Parser);
-		Hooks = BSLParser.Hooks();
-		List = Undefined;
-		For Each MethodName In PluginProcessor.Interface() Do
-			If Hooks.Property(MethodName, List) Then
-				List.Add(PluginProcessor);
-			EndIf; 
-		EndDo; 
-		Visitor = BSLParser.Visitor(Hooks);
-		BSLParser.VisitModule(Visitor, Parser.Module);
+		
+		PluginProcessor = ExternalDataProcessors.Create(PluginPath, False);
+		Parser_Module = BSLParser.ParseModule(Source.GetText());
+		BSLParser.HookUp(PluginProcessor);
+		BSLParser.VisitModule(Parser_Module);
 		Result.SetText(PluginProcessor.Result());
 		
 	EndIf;
@@ -118,7 +100,7 @@ EndFunction // FillTree()
 &AtServer
 Function FillNode(Row, Node)
 	Var Place;
-	If Node.Property("Place", Place) And Place <> Undefined Then
+	If Node.Property("Place", Place) And TypeOf(Place) = Type("Structure") Then
 		Row.Line = Place.BegLine;
 		Row.Pos = Place.Pos;
 		Row.Len = Place.Len;
@@ -223,7 +205,7 @@ Procedure ChoosePathNotifyChoice(Result, AdditionalParameters) Export
 		PluginPath = Result[0];
 	EndIf;
 
-EndProcedure // ChoosePathHandle()
+EndProcedure // ChoosePathNotifyChoice()
 
 &AtClient
 Procedure TreeSelection(Item, SelectedRow, Field, StandardProcessing)
@@ -232,6 +214,6 @@ Procedure TreeSelection(Item, SelectedRow, Field, StandardProcessing)
 		Items.Source.SetTextSelectionBounds(Row.Pos, Row.Pos + Row.Len);
 		CurrentItem = Items.Source;
 	EndIf; 
-EndProcedure
+EndProcedure // TreeSelection()
 
 
