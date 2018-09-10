@@ -18,10 +18,8 @@ EndFunction // Result()
 Function Interface() Export
 	Var Interface;
 	Interface = New Array;
-	Interface.Add("VisitFuncDecl");
-	Interface.Add("VisitProcDecl");
-	Interface.Add("AfterVisitFuncDecl");
-	Interface.Add("AfterVisitProcDecl");
+	Interface.Add("VisitMethodDecl");
+	Interface.Add("AfterVisitMethodDecl");
 	Interface.Add("VisitPrepIfDecl");
 	Interface.Add("VisitPrepElsIfDecl");
 	Interface.Add("VisitIfStmt");
@@ -37,25 +35,19 @@ Function Interface() Export
 	Return Interface;
 EndFunction // Interface()
 
-Procedure VisitFuncDecl(FuncDecl, Stack, Counters) Export
+Procedure VisitMethodDecl(MethodDecl, Stack, Counters) Export
 	ForkPoint = 0;
 	ReturnCount = 0;
-EndProcedure // VisitFuncDecl()
+EndProcedure // VisitMethodDecl()
 
-Procedure VisitProcDecl(ProcDecl, Stack, Counters) Export
-	ForkPoint = 0;
-	ReturnCount = 0;
-EndProcedure // VisitFuncDecl()
-
-Procedure AfterVisitFuncDecl(FuncDecl, Stack, Counters) Export
+Procedure AfterVisitMethodDecl(MethodDecl, Stack, Counters) Export
 	CyclomaticComplexity = ForkPoint - Max(1,ReturnCount) + 2;
-	Result.Add(StrTemplate("Функция `%1()` имеет цикломатическую сложность %2", FuncDecl.Object.Name, CyclomaticComplexity));
-EndProcedure // AfterVisitFuncDecl()
-
-Procedure AfterVisitProcDecl(ProcDecl, Stack, Counters) Export
-	CyclomaticComplexity = ForkPoint - Max(1,ReturnCount) + 2;
-	Result.Add(StrTemplate("Процедура `%1()` имеет цикломатическую сложность %2", ProcDecl.Object.Name, CyclomaticComplexity));
-EndProcedure // AfterVisitFuncDecl()
+	If MethodDecl.Sign.Type = Nodes.FuncSign Then
+		Result.Add(StrTemplate("Функция `%1()` имеет цикломатическую сложность %2", MethodDecl.Sign.Name, CyclomaticComplexity));
+	Else
+		Result.Add(StrTemplate("Процедура `%1()` имеет цикломатическую сложность %2", MethodDecl.Sign.Name, CyclomaticComplexity));
+	EndIf;	
+EndProcedure // AfterVisitMethodDecl()
 
 Procedure VisitPrepIfDecl(PrepIfDecl, Stack, Counters) Export
 	ForkPoint = ForkPoint + 1;
